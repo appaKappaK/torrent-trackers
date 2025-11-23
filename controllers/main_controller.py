@@ -30,6 +30,20 @@ class MainController:
         """Set the view reference"""
         self.view = view
     
+    # Add these network interface methods:
+    def get_network_interfaces(self):
+        """Get available network interfaces"""
+        return self.validator.interface_binder.detect_interfaces()
+    
+    def set_validation_interface(self, interface_name):
+        """Set network interface for validation"""
+        self.validator.set_network_interface(interface_name)
+        self.config.set("validation.network_interface", interface_name)
+    
+    def is_linux_system(self):
+        """Check if running on Linux"""
+        return self.validator.interface_binder.is_linux()
+    
     def find_duplicates(self, text: str) -> dict:
         """Find and remove duplicate trackers"""
         if not text.strip():

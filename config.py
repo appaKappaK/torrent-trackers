@@ -8,7 +8,8 @@ DEFAULT_CONFIG = {
     "validation": {
         "max_workers": 10,
         "timeout": 10,
-        "socket_timeout": 5
+        "socket_timeout": 5,
+        "network_interface": None
     },
     "gui": {
         "window_width": 800,

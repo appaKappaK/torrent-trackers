@@ -9,6 +9,7 @@ from config import Config
 import logging
 from requests.adapters import HTTPAdapter  
 from urllib3.util.retry import Retry       
+from network.interface_bind import InterfaceBinder
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,35 @@ class TrackerValidator:
         self.user_agent = "TrackerValidator/1.0"
         self._should_stop = False
         self._futures: List[Future] = []
+        self.interface_binder = InterfaceBinder()
+        self.bound_interface = None
+        self.current_external_ip = "Unknown"  # Track current WAN IP
+    
+    def set_network_interface(self, interface_name):
+        """Set specific network interface for validation"""
+        self.bound_interface = interface_name
+        # Update external IP when interface changes
+        if interface_name:
+            self._update_external_ip()
+    
+    def get_external_ip(self):
+        """Get the current external IP"""
+        return self.current_external_ip
+    
+    def _update_external_ip(self):
+        """Update the external IP for the current interface"""
+        try:
+            with requests.Session() as session:
+                if self.bound_interface:
+                    session = self.interface_binder.bind_to_interface(session, self.bound_interface)
+                
+                response = session.get('https://httpbin.org/ip', timeout=5)
+                ip_data = response.json()
+                self.current_external_ip = ip_data.get('origin', 'Unknown')
+                logger.info(f"🔍 External IP via {self.bound_interface}: {self.current_external_ip}")
+        except Exception as e:
+            self.current_external_ip = f"Check failed: {e}"
+            logger.warning(f"Could not determine external IP: {e}")
     
     def stop_validation(self):
         """Signal to stop validation"""
@@ -126,6 +156,11 @@ class TrackerValidator:
             with requests.Session() as session:
                 session.headers.update({'User-Agent': self.user_agent})
                 
+                # Apply interface binding if set
+                if self.bound_interface:
+                    session = self.interface_binder.bind_to_interface(session, self.bound_interface)
+                    logger.info(f"🔒 Validating {url} through interface: {self.bound_interface}")
+                
                 # Try HEAD first
                 try:
                     response = session.head(url, timeout=self.config.get("validation.timeout", 10), allow_redirects=True)
@@ -167,6 +202,10 @@ class OptimizedValidator(TrackerValidator):
         )
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
+        
+        # Apply interface binding to the persistent session if set
+        if self.bound_interface:
+            self.session = self.interface_binder.bind_to_interface(self.session, self.bound_interface)
 
 class SafeTrackerValidator(TrackerValidator):
     """Validator with comprehensive error handling"""

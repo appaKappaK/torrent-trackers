@@ -260,7 +260,8 @@ class MainView:
         
         # Labels and other specific widgets
         label_attributes = [
-            'stats_label', 'progress_label', 'timer_label'
+            'stats_label', 'progress_label', 'timer_label', 'interface_status',
+            'wan_ip_label', 'wan_ip_value'
         ]
         
         for attr_name in label_attributes:
@@ -416,6 +417,80 @@ udp://open.stealth.si:80/announce"""
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="2. Validate Trackers")
         
+        # Network Interface section (Linux only)
+        if self.controller.is_linux_system():
+            interface_frame = ttk.LabelFrame(tab, text="Network Interface (Linux Only)", padding=10)
+            interface_frame.pack(fill='x', padx=5, pady=5)
+            
+            # Interface selection
+            ttk.Label(interface_frame, text="Bind to interface:").pack(anchor='w', pady=(0, 5))
+            
+            interface_select_frame = ttk.Frame(interface_frame)
+            interface_select_frame.pack(fill='x', pady=5)
+            
+            self.interface_var = tk.StringVar(value="Auto (default)")
+            interfaces = self.controller.get_network_interfaces()
+            interface_names = ["Auto (default)"] + [f"{i['name']} ({i['ip']}) - {i['type']}" for i in interfaces]
+            
+            self.interface_combo = ttk.Combobox(interface_select_frame, 
+                                              textvariable=self.interface_var,
+                                              values=interface_names,
+                                              state="readonly",
+                                              width=40)
+            self.interface_combo.pack(side='left', padx=(0, 10))
+            
+            ttk.Button(interface_select_frame, text="Refresh Interfaces", 
+                      command=self.refresh_interfaces).pack(side='left')
+            
+            # WAN IP display frame
+            wan_ip_frame = ttk.Frame(interface_frame)
+            wan_ip_frame.pack(fill='x', pady=(10, 0))
+            
+            # WAN IP display
+            wan_ip_display_frame = ttk.LabelFrame(wan_ip_frame, text="WAN IP Verification", padding=5)
+            wan_ip_display_frame.pack(fill='x', pady=5)
+            
+            wan_ip_content = ttk.Frame(wan_ip_display_frame)
+            wan_ip_content.pack(fill='x', padx=5, pady=2)
+            
+            self.wan_ip_label = tk.Label(wan_ip_content, text="Current WAN IP:", font=("Arial", 9))
+            self.wan_ip_label.pack(side='left')
+            
+            self.wan_ip_value = tk.Label(wan_ip_content, text="Unknown", font=("Arial", 9, "bold"), fg="blue")
+            self.wan_ip_value.pack(side='left', padx=(5, 10))
+            
+            ttk.Button(wan_ip_content, text="Check IP", 
+                      command=self.check_wan_ip).pack(side='left', padx=(0, 5))
+            
+            ttk.Button(wan_ip_content, text="Test Interface", 
+                      command=self.test_interface).pack(side='left')
+            
+            # Interface status
+            self.interface_status = tk.Label(interface_frame, text="Interface: Default", 
+                                           font=("Arial", 9), fg="gray")
+            self.interface_status.pack(anchor='w', pady=(5, 0))
+            
+            # Update status when interface is selected
+            def on_interface_selected(event):
+                selected = self.interface_var.get()
+                if selected != "Auto (default)":
+                    interface_name = selected.split(' ')[0]
+                    self.interface_status.config(
+                        text=f"Interface: {interface_name} ✅", 
+                        fg="green"
+                    )
+                    # Auto-check WAN IP when interface changes
+                    self.root.after(500, self.check_wan_ip)
+                else:
+                    self.interface_status.config(
+                        text="Interface: Default", 
+                        fg="gray"
+                    )
+                    self.check_wan_ip()
+            
+            if hasattr(self, 'interface_combo'):
+                self.interface_combo.bind('<<ComboboxSelected>>', on_interface_selected)
+        
         # Control section
         control_frame = ttk.LabelFrame(tab, text="Validation Control", padding=10)
         control_frame.pack(fill='x', padx=5, pady=5)
@@ -460,6 +535,68 @@ udp://open.stealth.si:80/announce"""
         results_frame.columnconfigure(0, weight=1)
         results_frame.columnconfigure(1, weight=1)
         results_frame.rowconfigure(1, weight=1)
+
+    def check_wan_ip(self):
+        """Check and display the current WAN IP"""
+        if hasattr(self, 'interface_var'):
+            interface_name = None
+            if self.interface_var.get() != "Auto (default)":
+                interface_name = self.interface_var.get().split(' ')[0]
+            
+            self.controller.set_validation_interface(interface_name)
+            external_ip = self.controller.validator.get_external_ip()
+            
+            self.wan_ip_value.config(text=external_ip)
+            if "failed" in external_ip.lower():
+                self.wan_ip_value.config(fg="red")
+            else:
+                self.wan_ip_value.config(fg="green")
+            
+            self.update_status(f"WAN IP: {external_ip}")
+
+    def test_interface(self):
+        """Test the currently selected interface"""
+        if hasattr(self, 'interface_var'):
+            interface_name = None
+            if self.interface_var.get() != "Auto (default)":
+                interface_name = self.interface_var.get().split(' ')[0]
+            
+            self.controller.set_validation_interface(interface_name)
+            
+            try:
+                # Quick test to httpbin.org to see our IP
+                import requests
+                with requests.Session() as session:
+                    if interface_name:
+                        session = self.controller.validator.interface_binder.bind_to_interface(session, interface_name)
+                        interface_info = f" via {interface_name}"
+                    else:
+                        interface_info = " (default)"
+                    
+                    response = session.get('https://httpbin.org/ip', timeout=10)
+                    ip_data = response.json()
+                    external_ip = ip_data.get('origin', 'Unknown')
+                    
+                    messagebox.showinfo("Interface Test", 
+                                      f"Interface: {interface_name or 'Default'}\n"
+                                      f"External IP: {external_ip}\n"
+                                      f"Status: ✅ Working")
+                    self.update_status(f"Interface test: {external_ip}{interface_info}")
+                    
+                    # Update WAN IP display
+                    self.wan_ip_value.config(text=external_ip, fg="green")
+            except Exception as e:
+                messagebox.showerror("Interface Test Failed", f"Error: {e}")
+                self.update_status("Interface test failed")
+                self.wan_ip_value.config(text=f"Test failed: {e}", fg="red")
+
+    def refresh_interfaces(self):
+        """Refresh network interfaces list"""
+        if hasattr(self, 'interface_combo'):
+            interfaces = self.controller.get_network_interfaces()
+            interface_names = ["Auto (default)"] + [f"{i['name']} ({i['ip']}) - {i['type']}" for i in interfaces]
+            self.interface_combo['values'] = interface_names
+            self.update_status("Network interfaces refreshed")
 
     def setup_results_tab(self):
         """Setup results tab"""
@@ -525,8 +662,10 @@ Shortcuts:
 Tips:
 • Use 'Sample Data' to test the application
 • Check the History tab for reliability statistics
-• Export results in multiple formats"""
-        
+• Export results in multiple formats
+• On Linux: Use network interface binding for VPN validation
+• Use WAN IP verification to confirm interface binding"""
+
         messagebox.showinfo("Quick Help", help_text)
     
     def update_progress(self, percent, current, total):
@@ -551,7 +690,12 @@ Tips:
             status_icon = "✅" if tracker.alive else "❌"
             response_time = f" ({tracker.response_time:.2f}s)" if tracker.response_time else ""
             
-            text_widget.insert(tk.END, f"{status_icon} {tracker.url}{response_time}\n")
+            # Add interface info if bound
+            interface_info = ""
+            if hasattr(self.controller.validator, 'bound_interface') and self.controller.validator.bound_interface:
+                interface_info = f" [via {self.controller.validator.bound_interface}]"
+            
+            text_widget.insert(tk.END, f"{status_icon} {tracker.url}{response_time}{interface_info}\n")
             
             # Only auto-scroll if enabled
             if self.auto_scroll:
@@ -631,6 +775,15 @@ Tips:
             if not self.controller.trackers.unique_urls:
                 messagebox.showwarning("Warning", "No trackers to validate! Find duplicates first.")
                 return
+                
+            # Set network interface before validation (Linux only)
+            if hasattr(self, 'interface_var') and self.interface_var.get() != "Auto (default)":
+                interface_name = self.interface_var.get().split(' ')[0]  # Extract interface name
+                self.controller.set_validation_interface(interface_name)
+                self.update_status(f"Validation using interface: {interface_name}")
+            else:
+                self.controller.set_validation_interface(None)
+                self.update_status("Validation using default interface")
                 
             self.controller.start_validation()
             self.validate_btn.config(state='disabled')
