@@ -209,10 +209,8 @@ The application automatically creates a configuration file (`tracker_manager_con
 
 ## Development
 
-<<<<<<< HEAD
 ### Code Organization
 The project follows strict organizational patterns with clear section headers:
-=======
 ### Adding New Features
 
 The application follows MVC architecture:
@@ -224,7 +222,6 @@ The application follows MVC architecture:
 ### Plugin System
 
 Extend functionality by implementing the `services/plugin_base` class:
->>>>>>> ce724c2bbb9d752a4e5cd6ec4e5be48d94131925
 
 ```python
 # Example from MainController:
@@ -311,7 +308,6 @@ validator.set_network_interface('eth0')
 
 ---
 
-<<<<<<< HEAD
 ## Contributing
 
 1. Fork the repository
@@ -326,9 +322,6 @@ validator.set_network_interface('eth0')
 - Add comprehensive docstrings and comments
 - Update documentation for new features
 - Use the tools directory for testing and debugging
-=======
-## Support
->>>>>>> ce724c2bbb9d752a4e5cd6ec4e5be48d94131925
 
 ## License
 
