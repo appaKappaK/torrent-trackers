@@ -5,6 +5,8 @@ from models import Tracker
 class Plugin(ABC):
     """Base class for all plugins"""
     
+    # ===== ABSTRACT PLUGIN METHODS =====
+    
     @abstractmethod
     def before_validation(self, trackers: List[Tracker]) -> List[Tracker]:
         """Called before validation starts"""
@@ -15,8 +17,11 @@ class Plugin(ABC):
         """Called after validation completes"""
         return results
 
+
 class DuplicateRemoverPlugin(Plugin):
     """Plugin to remove duplicates before validation"""
+    
+    # ===== PLUGIN IMPLEMENTATION METHODS =====
     
     def before_validation(self, trackers: List[Tracker]) -> List[Tracker]:
         seen = set()
@@ -30,8 +35,11 @@ class DuplicateRemoverPlugin(Plugin):
     def after_validation(self, results: List[Tracker]) -> List[Tracker]:
         return results
 
+
 class StatsPlugin(Plugin):
     """Plugin to collect statistics"""
+    
+    # ===== PLUGIN IMPLEMENTATION METHODS =====
     
     def before_validation(self, trackers: List[Tracker]) -> List[Tracker]:
         return trackers

@@ -26,66 +26,16 @@ class MainController:
         self.validation_thread = None
         self.is_validating = False
     
+    # ===== VIEW AND INITIALIZATION METHODS =====
+    
     def set_view(self, view):
         """Set the view reference"""
         self.view = view
     
-    # Add these network interface methods:
-    def get_network_interfaces(self):
-        """Get available network interfaces"""
-        return self.validator.interface_binder.detect_interfaces()
-    
-    def set_validation_interface(self, interface_name):
-        """Set network interface for validation"""
-        self.validator.set_network_interface(interface_name)
-        self.config.set("validation.network_interface", interface_name)
-    
-    def is_linux_system(self):
-        """Check if running on Linux"""
-        return self.validator.interface_binder.is_linux()
-    
-    def find_duplicates(self, text: str) -> dict:
-        """Find and remove duplicate trackers"""
-        if not text.strip():
-            raise ValueError("Please paste some tracker URLs first!")
-        
-        all_trackers = self.parser.extract_trackers_from_text(text)
-        if not all_trackers:
-            raise ValueError("No valid tracker URLs found!")
-        
-        self.trackers.unique_urls = self.parser.remove_duplicates(all_trackers)
-        
-        return {
-            'total': len(all_trackers),
-            'unique': len(self.trackers.unique_urls),
-            'duplicates': len(all_trackers) - len(self.trackers.unique_urls)
-        }
-    
-    def start_validation(self):
-        """Start tracker validation"""
-        if not self.trackers.unique_urls:
-            raise ValueError("No trackers to validate! Find duplicates first.")
-        
-        if self.is_validating:
-            raise ValueError("Validation already in progress.")
-        
-        self.is_validating = True
-        self.validator.reset_stop_flag()
-        self.validator.is_validating = True  # ADD THIS LINE
-        self.trackers.validation_results.clear()
-        
-        # Convert URLs to Tracker objects
-        trackers_to_validate = [Tracker(url) for url in self.trackers.unique_urls]
-        
-        # Start validation in background thread
-        self.validation_thread = threading.Thread(target=self._run_validation, args=(trackers_to_validate,), daemon=True)
-        self.validation_thread.start()
-        
-        logger.info(f"Started validation of {len(trackers_to_validate)} trackers")
-    
     def init_database(self):
         """Initialize database tables with proper constraints"""
-        with sqlite3.connect(self.db_path) as conn:
+        import sqlite3
+        with sqlite3.connect(self.database.db_path) as conn:
             cursor = conn.cursor()
             
             # Trackers table
@@ -106,7 +56,7 @@ class MainController:
                 )
             ''')
             
-            # Validation sessions table - ADD THIS
+            # Validation sessions table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS validation_sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,7 +67,7 @@ class MainController:
                 )
             ''')
             
-            # Favorites table - ADD THIS
+            # Favorites table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS favorites (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,7 +84,102 @@ class MainController:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_favorites_tracker_id ON favorites(tracker_id)')
             
             conn.commit()
-
+    
+    def health_check(self) -> Tuple[bool, Dict]:
+        """Perform application health checks"""
+        checks = {
+            'config_loaded': bool(self.config.data),
+            'services_ready': all([
+                hasattr(self, 'validator'),
+                hasattr(self, 'parser')
+            ]),
+            'validation_workers': self.config.get("validation.max_workers", 0) > 0
+        }
+        return all(checks.values()), checks
+    
+    # ===== NETWORK INTERFACE METHODS =====
+    
+    def get_network_interfaces(self):
+        """Get available network interfaces"""
+        return self.validator.interface_binder.detect_interfaces()
+    
+    def set_validation_interface(self, interface_name):
+        """Set network interface for validation"""
+        self.validator.set_network_interface(interface_name)
+        self.config.set("validation.network_interface", interface_name)
+    
+    def is_linux_system(self):
+        """Check if running on Linux"""
+        return self.validator.interface_binder.is_linux()
+    
+    # ===== TRACKER PROCESSING METHODS =====
+    
+    def find_duplicates(self, text: str) -> dict:
+        """Find and remove duplicate trackers"""
+        if not text.strip():
+            raise ValueError("Please paste some tracker URLs first!")
+        
+        all_trackers = self.parser.extract_trackers_from_text(text)
+        if not all_trackers:
+            raise ValueError("No valid tracker URLs found!")
+        
+        self.trackers.unique_urls = self.parser.remove_duplicates(all_trackers)
+        
+        return {
+            'total': len(all_trackers),
+            'unique': len(self.trackers.unique_urls),
+            'duplicates': len(all_trackers) - len(self.trackers.unique_urls)
+        }
+    
+    def batch_operations(self, operation: str, trackers: List[Tracker]) -> List[Tracker]:
+        """Perform batch operations on trackers"""
+        if operation == 'select_working':
+            return [t for t in trackers if t.alive]
+        elif operation == 'deselect_all':
+            return []
+        elif operation == 'select_all':
+            return trackers
+        return trackers
+    
+    def load_preset(self, preset_name: str) -> List[str]:
+        """Load a preset tracker list"""
+        presets = self.config.get_presets()
+        if preset_name in presets:
+            return presets[preset_name]
+        return []
+    
+    # ===== VALIDATION CONTROL METHODS =====
+    
+    def start_validation(self):
+        """Start tracker validation"""
+        if not self.trackers.unique_urls:
+            raise ValueError("No trackers to validate! Find duplicates first.")
+        
+        if self.is_validating:
+            raise ValueError("Validation already in progress.")
+        
+        self.is_validating = True
+        self.validator.reset_stop_flag()
+        self.validator.is_validating = True
+        self.trackers.validation_results.clear()
+        
+        # Convert URLs to Tracker objects
+        trackers_to_validate = [Tracker(url) for url in self.trackers.unique_urls]
+        
+        # Start validation in background thread
+        self.validation_thread = threading.Thread(target=self._run_validation, args=(trackers_to_validate,), daemon=True)
+        self.validation_thread.start()
+        
+        logger.info(f"Started validation of {len(trackers_to_validate)} trackers")
+    
+    def stop_validation(self):
+        """Stop ongoing validation"""
+        if self.is_validating:
+            self.validator.stop_validation()
+            self.validator.is_validating = False
+            self.is_validating = False
+            logger.info("Validation stopped by user")
+    
     def _run_validation(self, trackers: list):
         """Run validation in background thread with progress and proper stopping"""
         try:
@@ -189,8 +234,71 @@ class MainController:
                 self.view.safe_gui_update(lambda: self.view.show_error(f"Validation failed: {e}"))
         finally:
             self.is_validating = False
-            self.validator.is_validating = False  # ADD THIS LINE
-            
+            self.validator.is_validating = False
+    
+    # ===== EXPORT AND COPY METHODS =====
+    
+    def export_working_trackers(self) -> str:
+        """Export working trackers as text"""
+        return '\n'.join(tracker.url for tracker in self.trackers.working_trackers)
+    
+    def export_all_results(self) -> dict:
+        """Export all results as structured data"""
+        return {
+            'timestamp': time.time(),
+            'total_trackers': len(self.trackers.validation_results),
+            'working_trackers': len(self.trackers.working_trackers),
+            'results': [
+                {
+                    'url': tracker.url,
+                    'alive': tracker.alive,
+                    'response_time': tracker.response_time,
+                    'error': tracker.error,
+                    'type': tracker.tracker_type
+                }
+                for tracker in self.trackers.validation_results
+            ]
+        }
+    
+    def export_csv(self) -> str:
+        """Export as CSV string"""
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['URL', 'Status', 'Response Time', 'Type', 'Error'])
+        for tracker in self.trackers.validation_results:
+            writer.writerow([
+                tracker.url,
+                'Working' if tracker.alive else 'Dead',
+                f"{tracker.response_time:.2f}" if tracker.response_time else '',
+                tracker.tracker_type,
+                tracker.error or ''
+            ])
+        return output.getvalue()
+    
+    def export_yaml(self) -> str:
+        """Export as YAML string"""
+        import yaml
+        data = self.export_all_results()
+        return yaml.dump(data, default_flow_style=False)
+    
+    def export_multiple_formats(self, format_type: str) -> Any:
+        """Export results in different formats"""
+        if format_type == 'csv':
+            return self.export_csv()
+        elif format_type == 'yaml':
+            return self.export_yaml()
+        else:  # json
+            return self.export_all_results()
+    
+    def copy_to_clipboard(self) -> str:
+        """Copy working trackers to clipboard"""
+        working_urls = [tracker.url for tracker in self.trackers.working_trackers]
+        if not working_urls:
+            raise ValueError("No working trackers to copy!")
+        return '\n'.join(working_urls)
+    
+    # ===== DATABASE AND HISTORY METHODS =====
+    
     def get_tracker_history(self, limit: int = 100):
         """Get tracker validation history"""
         return self.database.get_tracker_history(limit)
@@ -227,93 +335,9 @@ class MainController:
             'overall_success_rate': avg_success_rate,
             'most_reliable': self.database.get_reliable_trackers(limit=5)
         }
-
-    def stop_validation(self):
-        """Stop ongoing validation"""
-        if self.is_validating:
-            self.validator.stop_validation()
-            self.validator.is_validating = False  # ADD THIS LINE
-            self.is_validating = False
-            logger.info("Validation stopped by user")
     
-    def export_working_trackers(self) -> str:
-        """Export working trackers as text"""
-        return '\n'.join(tracker.url for tracker in self.trackers.working_trackers)
+    # ===== STATISTICS AND ANALYSIS METHODS =====
     
-    def export_all_results(self) -> dict:
-        """Export all results as structured data"""
-        return {
-            'timestamp': time.time(),
-            'total_trackers': len(self.trackers.validation_results),
-            'working_trackers': len(self.trackers.working_trackers),
-            'results': [
-                {
-                    'url': tracker.url,
-                    'alive': tracker.alive,
-                    'response_time': tracker.response_time,
-                    'error': tracker.error,
-                    'type': tracker.tracker_type
-                }
-                for tracker in self.trackers.validation_results
-            ]
-        }
-    
-    def copy_to_clipboard(self) -> str:
-        """Copy working trackers to clipboard"""
-        working_urls = [tracker.url for tracker in self.trackers.working_trackers]
-        if not working_urls:
-            raise ValueError("No working trackers to copy!")
-        return '\n'.join(working_urls)
-
-    def health_check(self) -> Tuple[bool, Dict]:
-        """Perform application health checks"""
-        checks = {
-            'config_loaded': bool(self.config.data),
-            'services_ready': all([
-                hasattr(self, 'validator'),
-                hasattr(self, 'parser')
-            ]),
-            'validation_workers': self.config.get("validation.max_workers", 0) > 0
-        }
-        return all(checks.values()), checks
-
-    def load_preset(self, preset_name: str) -> List[str]:
-        """Load a preset tracker list"""
-        presets = self.config.get_presets()
-        if preset_name in presets:
-            return presets[preset_name]
-        return []
-
-    def export_multiple_formats(self, format_type: str) -> Any:
-        """Export results in different formats"""
-        if format_type == 'csv':
-            return self.export_csv()
-        elif format_type == 'yaml':
-            return self.export_yaml()
-        else:  # json
-            return self.export_all_results()
-
-    def export_csv(self) -> str:
-        """Export as CSV string"""
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(['URL', 'Status', 'Response Time', 'Type', 'Error'])
-        for tracker in self.trackers.validation_results:
-            writer.writerow([
-                tracker.url,
-                'Working' if tracker.alive else 'Dead',
-                f"{tracker.response_time:.2f}" if tracker.response_time else '',
-                tracker.tracker_type,
-                tracker.error or ''
-            ])
-        return output.getvalue()
-
-    def export_yaml(self) -> str:
-        """Export as YAML string"""
-        import yaml
-        data = self.export_all_results()
-        return yaml.dump(data, default_flow_style=False)
-
     def get_statistics(self) -> TrackerStats:
         """Calculate tracker statistics"""
         results = self.trackers.validation_results
@@ -334,13 +358,3 @@ class MainController:
             avg_response_time=avg_time,
             by_type=by_type
         )
-
-    def batch_operations(self, operation: str, trackers: List[Tracker]) -> List[Tracker]:
-        """Perform batch operations on trackers"""
-        if operation == 'select_working':
-            return [t for t in trackers if t.alive]
-        elif operation == 'deselect_all':
-            return []
-        elif operation == 'select_all':
-            return trackers
-        return trackers

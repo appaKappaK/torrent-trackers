@@ -4,6 +4,8 @@ import threading
 from contextlib import contextmanager
 from typing import Any
 
+# ===== TIMING AND PERFORMANCE UTILITIES =====
+
 @contextmanager
 def timer(operation_name: str):
     """Context manager for timing operations"""
@@ -14,12 +16,16 @@ def timer(operation_name: str):
         elapsed = time.time() - start
         print(f"{operation_name} took {elapsed:.2f}s")
 
+# ===== AUTO-SAVE MANAGEMENT =====
+
 class AutoSaveManager:
     """Manages auto-save functionality"""
     
     def __init__(self, save_interval=300):
         self.save_interval = save_interval
         self.timer = None
+    
+    # ===== AUTO-SAVE CONTROL METHODS =====
     
     def start_auto_save(self, save_callback):
         """Start auto-save timer"""
@@ -31,6 +37,8 @@ class AutoSaveManager:
         """Stop auto-save timer"""
         if self.timer:
             self.timer.cancel()
+
+# ===== SYSTEM HEALTH UTILITIES =====
 
 def health_check_system() -> dict:
     """Check system resource health"""

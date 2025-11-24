@@ -34,6 +34,8 @@ class TrackerDatabase:
         self.db_path = db_path
         self.init_database()
     
+    # ===== DATABASE INITIALIZATION METHODS =====
+    
     def init_database(self):
         """Initialize database tables with proper constraints"""
         with sqlite3.connect(self.db_path) as conn:
@@ -86,6 +88,8 @@ class TrackerDatabase:
             
             conn.commit()
     
+    # ===== TRACKER DATA MANAGEMENT METHODS =====
+    
     def save_tracker_result(self, tracker: 'Tracker') -> int:
         """Save or update tracker validation result"""
         with sqlite3.connect(self.db_path) as conn:
@@ -130,16 +134,6 @@ class TrackerDatabase:
             conn.commit()
             return tracker_id
     
-    def save_validation_session(self, total_trackers: int, working_trackers: int, duration: float):
-        """Save validation session summary"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO validation_sessions (total_trackers, working_trackers, duration)
-                VALUES (?, ?, ?)
-            ''', (total_trackers, working_trackers, duration))
-            conn.commit()
-    
     def get_tracker_history(self, limit: int = 100) -> List[TrackerHistory]:
         """Get recent tracker validation history"""
         with sqlite3.connect(self.db_path) as conn:
@@ -168,6 +162,20 @@ class TrackerDatabase:
             ''', (min_checks, min_success_rate))
             
             return [TrackerHistory(**dict(row)) for row in cursor.fetchall()]
+    
+    # ===== VALIDATION SESSION METHODS =====
+    
+    def save_validation_session(self, total_trackers: int, working_trackers: int, duration: float):
+        """Save validation session summary"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO validation_sessions (total_trackers, working_trackers, duration)
+                VALUES (?, ?, ?)
+            ''', (total_trackers, working_trackers, duration))
+            conn.commit()
+    
+    # ===== FAVORITES MANAGEMENT METHODS =====
     
     def add_to_favorites(self, tracker_id: int, notes: str = ""):
         """Add tracker to favorites"""

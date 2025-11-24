@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 class TrackerParser:
     """Handles tracker parsing and duplicate detection"""
     
+    # ===== BASIC PARSING METHODS =====
+    
     @staticmethod
     def extract_trackers_from_text(text: str) -> List[str]:
         """Extract tracker URLs from text"""
@@ -30,7 +32,9 @@ class TrackerParser:
         
         logger.info(f"Removed duplicates: {len(trackers)} -> {len(unique_trackers)}")
         return unique_trackers
-
+    
+    # ===== FORMAT-SPECIFIC PARSING METHODS =====
+    
     @staticmethod
     def parse_multiple_formats(content: str, format_type: str = 'auto') -> List[str]:
         """Parse tracker lists from different formats"""
@@ -76,7 +80,9 @@ class TrackerParser:
             return trackers
         except Exception:
             return []
-
+    
+    # ===== FILTERING AND UTILITY METHODS =====
+    
     @staticmethod
     def filter_trackers(trackers: List[str], query: str) -> List[str]:
         """Filter trackers by search query"""

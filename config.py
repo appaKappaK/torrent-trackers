@@ -4,6 +4,8 @@ import threading
 import time
 from typing import Dict, Any
 
+# ===== CONFIGURATION CONSTANTS =====
+
 DEFAULT_CONFIG = {
     "validation": {
         "max_workers": 10,
@@ -26,6 +28,24 @@ DEFAULT_CONFIG = {
     }
 }
 
+SUPPORTED_FORMATS = {
+    'txt': 'Text file (.txt)',
+    'json': 'JSON file (.json)', 
+    'csv': 'CSV file (.csv)',
+    'yaml': 'YAML file (.yaml)'
+}
+
+TRACKER_PRESETS = {
+    'default': [
+        'udp://tracker.opentrackr.org:1337/announce',
+        'http://tracker.openbittorrent.com:80/announce',
+        'udp://9.rarbg.to:2710/announce'
+    ],
+    'minimal': [
+        'udp://tracker.opentrackr.org:1337/announce'
+    ]
+}
+
 class Config:
     """Manages application configuration with batched saves"""
     
@@ -35,6 +55,8 @@ class Config:
         self._pending_saves = 0
         self._save_timer = None
         self._save_lock = threading.Lock()
+    
+    # ===== CONFIGURATION LOADING AND INITIALIZATION =====
     
     def load_config(self) -> Dict[str, Any]:
         """Load config from file or create default"""
@@ -48,6 +70,28 @@ class Config:
         # Save default config
         self._save_config_immediate(DEFAULT_CONFIG)
         return DEFAULT_CONFIG.copy()
+    
+    def validate_config(self):
+        """Enhanced configuration validation"""
+        required_keys = [
+            'validation.max_workers', 
+            'validation.timeout',
+            'validation.socket_timeout'
+        ]
+        
+        for key in required_keys:
+            if not self.get(key):
+                raise ValueError(f"Missing required config: {key}")
+                
+        max_workers = self.get('validation.max_workers')
+        if not 1 <= max_workers <= 50:
+            raise ValueError("max_workers must be between 1 and 50")
+        
+        timeout = self.get('validation.timeout')
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
+    
+    # ===== CONFIGURATION ACCESS METHODS =====
     
     def get(self, key: str, default=None):
         """Get config value using dot notation"""
@@ -70,6 +114,12 @@ class Config:
         else:
             self._schedule_save()
     
+    def get_presets(self):
+        """Get available tracker presets"""
+        return TRACKER_PRESETS
+    
+    # ===== BATCHED SAVE MANAGEMENT =====
+    
     def _schedule_save(self):
         """Schedule a batched save"""
         with self._save_lock:
@@ -88,15 +138,6 @@ class Config:
                 self._save_timer.daemon = True
                 self._save_timer.start()
     
-    def __del__(self):
-        """Cleanup timer on destruction"""
-        try:
-            self._flush_pending_saves()
-            if self._save_timer:
-                self._save_timer.cancel()
-        except:
-            pass  # Ignore errors during cleanup
-
     def _flush_pending_saves(self):
         """Flush pending saves to disk"""
         with self._save_lock:
@@ -104,6 +145,8 @@ class Config:
                 self._save_config_immediate()
                 self._pending_saves = 0
                 self._save_timer = None
+    
+    # ===== FILE OPERATIONS =====
     
     def _save_config_immediate(self, config_data: Dict[str, Any] = None):
         """Save config to file immediately"""
@@ -121,46 +164,13 @@ class Config:
         """Public method to force immediate save"""
         self._save_config_immediate(config_data)
     
-    def validate_config(self):
-        """Enhanced configuration validation"""
-        required_keys = [
-            'validation.max_workers', 
-            'validation.timeout',
-            'validation.socket_timeout'
-        ]
-        
-        for key in required_keys:
-            if not self.get(key):
-                raise ValueError(f"Missing required config: {key}")
-                
-        max_workers = self.get('validation.max_workers')
-        if not 1 <= max_workers <= 50:
-            raise ValueError("max_workers must be between 1 and 50")
-        
-        timeout = self.get('validation.timeout')
-        if timeout <= 0:
-            raise ValueError("timeout must be positive")
+    # ===== CLEANUP AND DESTRUCTION =====
     
-    def get_presets(self):
-        """Get available tracker presets"""
-        return TRACKER_PRESETS
-
-
-# Add these constants after Config class
-SUPPORTED_FORMATS = {
-    'txt': 'Text file (.txt)',
-    'json': 'JSON file (.json)', 
-    'csv': 'CSV file (.csv)',
-    'yaml': 'YAML file (.yaml)'
-}
-
-TRACKER_PRESETS = {
-    'default': [
-        'udp://tracker.opentrackr.org:1337/announce',
-        'http://tracker.openbittorrent.com:80/announce',
-        'udp://9.rarbg.to:2710/announce'
-    ],
-    'minimal': [
-        'udp://tracker.opentrackr.org:1337/announce'
-    ]
-}
+    def __del__(self):
+        """Cleanup timer on destruction"""
+        try:
+            self._flush_pending_saves()
+            if self._save_timer:
+                self._save_timer.cancel()
+        except:
+            pass  # Ignore errors during cleanup

@@ -18,9 +18,13 @@ class Tracker:
     error: str = None
     tracker_type: str = 'unknown'
     
+    # ===== PROPERTY METHODS =====
+    
     @property
     def normalized_url(self):
         return Tracker.normalize_tracker_url(self.url)
+    
+    # ===== URL PROCESSING METHODS =====
     
     @staticmethod
     def normalize_tracker_url(url: str) -> str:
@@ -71,11 +75,15 @@ class TrackerCollection:
         self.unique_urls: List[str] = []
         self.validation_results: List[Tracker] = []
     
+    # ===== COLLECTION MANAGEMENT METHODS =====
+    
     def clear(self):
         """Clear all data"""
         self.trackers.clear()
         self.unique_urls.clear()
         self.validation_results.clear()
+    
+    # ===== PROPERTY METHODS =====
     
     @property
     def working_trackers(self) -> List[Tracker]:
@@ -96,6 +104,8 @@ class ValidationResult:
     tracker_type: str = 'unknown'
     validated_at: float = None
     
+    # ===== INITIALIZATION METHODS =====
+    
     def __post_init__(self):
         if self.validated_at is None:
             self.validated_at = time.time()
@@ -109,6 +119,8 @@ class TrackerStats:
     dead: int = 0
     avg_response_time: float = 0.0
     by_type: Dict[str, int] = None
+    
+    # ===== INITIALIZATION METHODS =====
     
     def __post_init__(self):
         if self.by_type is None:

@@ -21,6 +21,8 @@ class InterfaceBinder:
     def __init__(self):
         self.available_interfaces = self.detect_interfaces()
     
+    # ===== INTERFACE DETECTION METHODS =====
+    
     def detect_interfaces_netifaces(self):
         """Detect available network interfaces using netifaces"""
         interfaces = []
@@ -99,6 +101,8 @@ class InterfaceBinder:
         # Fallback to ip command if netifaces not available or found nothing
         return self.detect_interfaces_ip_command()
     
+    # ===== INTERFACE BINDING METHODS =====
+    
     def bind_to_interface(self, session, interface_name):
         """Bind requests session to specific interface (Linux only)"""
         if not hasattr(socket, 'SO_BINDTODEVICE'):
@@ -121,6 +125,8 @@ class InterfaceBinder:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         return session
+    
+    # ===== PLATFORM DETECTION METHODS =====
     
     def is_linux(self):
         """Check if running on Linux"""

@@ -26,6 +26,24 @@ class TrackerValidator:
         self.current_external_ip = "Unknown"
         self.is_validating = False
     
+    # ===== VALIDATION CONTROL METHODS =====
+    
+    def stop_validation(self):
+        """Signal to stop validation"""
+        logger.info("Stopping validation")
+        self._should_stop = True
+        self.is_validating = False
+        for future in self._futures:
+            future.cancel()
+    
+    def reset_stop_flag(self):
+        """Reset stop flag for new validation run"""
+        self._should_stop = False
+        self.is_validating = True
+        self._futures.clear()
+    
+    # ===== NETWORK INTERFACE METHODS =====
+    
     def set_network_interface(self, interface_name):
         """Set specific network interface for validation"""
         self.bound_interface = interface_name
@@ -52,19 +70,7 @@ class TrackerValidator:
             self.current_external_ip = f"Check failed: {e}"
             logger.warning(f"Could not determine external IP: {e}")
     
-    def stop_validation(self):
-        """Signal to stop validation"""
-        logger.info("Stopping validation")
-        self._should_stop = True
-        self.is_validating = False  # ADD THIS LINE
-        for future in self._futures:
-            future.cancel()
-    
-    def reset_stop_flag(self):
-        """Reset stop flag for new validation run"""
-        self._should_stop = False
-        self.is_validating = True  # ADD THIS LINE
-        self._futures.clear()
+    # ===== BATCH VALIDATION METHODS =====
     
     def validate_batch(self, trackers: List[Tracker]) -> List[Tracker]:
         """Validate multiple trackers in parallel"""
@@ -94,6 +100,8 @@ class TrackerValidator:
             # Always reset validating state when done
             self.is_validating = False
     
+    # ===== SINGLE TRACKER VALIDATION METHODS =====
+    
     def validate(self, tracker: Tracker) -> Tracker:
         """Validate a single tracker"""
         if self._should_stop:
@@ -122,6 +130,8 @@ class TrackerValidator:
             logger.error(f"Error validating {tracker.url}: {e}")
         
         return tracker
+    
+    # ===== PROTOCOL-SPECIFIC VALIDATION METHODS =====
     
     def _validate_udp_tracker(self, url: str) -> bool:
         """Validate UDP tracker with proper error handling"""
@@ -190,13 +200,16 @@ class TrackerValidator:
         except Exception as e:
             logger.debug(f"HTTP validation failed for {url}: {e}")
             return False
-            
+
+
 class OptimizedValidator(TrackerValidator):
     """Validator with connection pooling and optimizations"""
     
     def __init__(self, config: Config):
         super().__init__(config)
         self.setup_session_pooling()
+    
+    # ===== OPTIMIZATION METHODS =====
     
     def setup_session_pooling(self):
         """Configure requests session with connection pooling"""
@@ -218,8 +231,11 @@ class OptimizedValidator(TrackerValidator):
         if self.bound_interface:
             self.session = self.interface_binder.bind_to_interface(self.session, self.bound_interface)
 
+
 class SafeTrackerValidator(TrackerValidator):
     """Validator with comprehensive error handling"""
+    
+    # ===== ENHANCED VALIDATION METHODS =====
     
     def validate_with_fallback(self, tracker: Tracker) -> Tracker:
         """Validate with multiple fallback strategies"""
@@ -242,6 +258,9 @@ class SafeTrackerValidator(TrackerValidator):
             return self.validate(tracker)
         finally:
             self.config.set("validation.timeout", original_timeout)
+
+
+# ===== UTILITY FUNCTIONS =====
 
 def validate_large_batches(validator: TrackerValidator, trackers: List[Tracker], chunk_size=50):
     """Validate large lists in chunks to prevent resource exhaustion"""
