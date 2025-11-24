@@ -334,32 +334,32 @@ class MainView:
 
     def setup_bindings(self):
         """Setup event bindings and keyboard shortcuts"""
-        # Ctrl+Q to quit
-        self.root.bind('<Control-q>', lambda e: self.quit_application())
-        
-        # Ctrl+D to find duplicates
-        self.root.bind('<Control-d>', lambda e: self.on_find_duplicates())
-        
-        # Ctrl+V to validate
-        self.root.bind('<Control-v>', lambda e: self.on_start_validation())
-        
-        # Ctrl+T to toggle theme
-        self.root.bind('<Control-t>', lambda e: self.toggle_theme())
-        
-        # Escape to stop validation
+        # Always keep essential safety and help bindings
+        self.root.bind('<Control-x>', lambda e: self.quit_application())  # Nano-style quit only
         self.root.bind('<Escape>', lambda e: self.on_stop_validation() if hasattr(self, 'stop_btn') and self.stop_btn['state'] == 'normal' else None)
-        
-        # F1 for help
-        self.root.bind('<F1>', lambda e: self.show_help())
-        
-        # Ctrl+S to save/export
-        self.root.bind('<Control-s>', lambda e: self.on_export_file())
-        
-        # Ctrl+Shift+T for table copy
-        self.root.bind('<Control-Shift-T>', lambda e: self.copy_as_table())
-        
-        # Window close protocol
+        self.root.bind('<F1>', lambda e: self.show_help())  # F1 help always available
         self.root.protocol("WM_DELETE_WINDOW", self.quit_application)
+        
+        # Only setup convenience hotkeys if enabled in config
+        if self.controller.config.get("gui.enable_hotkeys", False):
+            # Ctrl+D to find duplicates
+            self.root.bind('<Control-d>', lambda e: self.on_find_duplicates())
+            
+            # Ctrl+V to validate
+            self.root.bind('<Control-v>', lambda e: self.on_start_validation())
+            
+            # Ctrl+T to toggle theme
+            self.root.bind('<Control-t>', lambda e: self.toggle_theme())
+            
+            # Ctrl+S to save/export
+            self.root.bind('<Control-s>', lambda e: self.on_export_file())
+            
+            # Ctrl+Shift+T for table copy
+            self.root.bind('<Control-Shift-T>', lambda e: self.copy_as_table())
+            
+            logger.info("Hotkeys enabled: Ctrl+D, Ctrl+V, Ctrl+T, Ctrl+S, Ctrl+Shift+T")
+        else:
+            logger.info("Hotkeys disabled (F1 help and Ctrl-X quit still available)")
 
     # ===== MENU AND WINDOW MANAGEMENT METHODS =====
 
@@ -460,15 +460,17 @@ class MainView:
         """Show quick help dialog"""
         help_text = """Tracker Manager Pro - Quick Help
 
-Shortcuts:
-• Ctrl+D: Find duplicates
-• Ctrl+V: Validate trackers  
-• Ctrl+T: Toggle theme
-• Ctrl+S: Export results
-• Ctrl+Shift+T: Copy as table
-• Ctrl+Q: Quit application
-• Escape: Stop validation
-• F1: Show this help
+Essential Shortcuts (Always Available):
+• Ctrl+X - Quit application
+• Escape - Stop validation  
+• F1 - Show this help
+
+Optional Shortcuts (Enable in Config):
+• Ctrl+D - Find duplicates
+• Ctrl+V - Validate trackers
+• Ctrl+T - Toggle theme
+• Ctrl+S - Export results
+• Ctrl+Shift+T - Copy as table
 
 Tips:
 • Use 'Sample Data' to test the application
@@ -477,7 +479,8 @@ Tips:
 • On Linux: Use network interface binding for VPN validation
 • Use WAN IP verification to confirm interface binding
 • Auto-scroll can be toggled in View menu
-• Copy as table for spreadsheet-friendly formatting"""
+• Copy as table for spreadsheet-friendly formatting
+• Enable optional shortcuts in config for full keyboard control"""
 
         messagebox.showinfo("Quick Help", help_text)
     
@@ -490,13 +493,15 @@ A comprehensive tool for managing and validating torrent trackers.
 Features:
 • Duplicate tracker detection
 • Multi-threaded validation
-• Network interface binding
-• Historical analytics
+• Network interface binding (VPN support)
+• WAN IP verification
+• Historical analytics dashboard
 • Multiple export formats
 • Table-formatted clipboard export
 • Dark/Light theme support
+• Configurable keyboard shortcuts
 
-Version: 2.0
+Version: 2.1
 Developed with Python and Tkinter"""
         messagebox.showinfo("About", about_text)
 

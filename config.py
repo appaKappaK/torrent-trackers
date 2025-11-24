@@ -17,7 +17,8 @@ DEFAULT_CONFIG = {
         "window_width": 800,
         "window_height": 600,
         "auto_scroll": True,
-        "dark_mode": False
+        "dark_mode": False,
+        "enable_hotkeys": False 
     },
     "trackers": {
         "default_ports": {
